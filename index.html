@@ -378,7 +378,7 @@
         // 初始化
         document.addEventListener('DOMContentLoaded', () => {
             // 连接服务器
-            gameState.socket = io('https://your-socketio-server.herokuapp.com');
+            gameState.socket = io('https://werewolf-backend.onrender.com');
             
             // 监听服务器事件
             gameState.socket.on('connect', () => {
