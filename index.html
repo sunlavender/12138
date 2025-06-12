@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手机狼人杀 - 多人联机版</title>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #ffcc00;
+            margin-top: 0;
+            font-size: 2.2rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .screen {
+            display: none;
+        }
+        
+        .active {
+            display: block;
+        }
+        
+        .player-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 12px;
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s;
+        }
+        
+        .player-card.active {
+            background: rgba(255, 204, 0, 0.2);
+            border: 2px solid #ffcc00;
+        }
+        
+        .player-card.eliminated {
+            opacity: 0.6;
+            background: rgba(255, 0, 0, 0.2);
+        }
+        
+        .player-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #3498db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .player-info {
+            flex: 1;
+        }
+        
+        .player-name {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .player-status {
+            font-size: 14px;
+            color: #aaa;
+        }
+        
+        .btn {
+            background: #ffcc00;
+            color: #000;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+            width: 100%;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: #ffd84d;
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            background: #555;
+            color: #999;
+            cursor: not-allowed;
+        }
+        
+        .btn-wolf {
+            background: #c0392b;
+            color: white;
+        }
+        
+        .btn-villager {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .role-card {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+            border: 2px solid #ffcc00;
+        }
+        
+        .role-name {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #ffcc00;
+        }
+        
+        .role-desc {
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        
+        .action-panel {
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .action-title {
+            text-align: center;
+            color: #ffcc00;
+            font-size: 20px;
+            margin-top: 0;
+        }
+        
+        .vote-btn {
+            background: #3498db;
+            color: white;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .vote-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.8);
+        }
+        
+        .vote-btn.selected {
+            background: #ffcc00;
+            color: #000;
+            box-shadow: 0 0 20px rgba(255, 204, 0, 0.8);
+        }
+        
+        .vote-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .game-log {
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .log-entry.system {
+            color: #ffcc00;
+        }
+        
+        .log-entry.action {
+            color: #3498db;
+        }
+        
+        .role-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 15px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        
+        .role-icon.wolf {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23c0392b"><path d="M20.8 22.7L18.1 20H4V12C4 12 5.5 10.8 6.7 9.5C7.9 8.2 9 6.7 9 4C9 2.1 8.2 1 7 1C5.8 1 5 2.1 5 4H3C3 1.8 4.8 0 7 0C8.5 0 9.8 0.8 10.3 2C10.9 1.4 11.9 1 13 1C15.8 1 18 3.2 18 6C18 7.4 17.3 8.7 16.3 9.5C18.8 10.8 20 12.6 20 15V20L22.8 22.8C23 23 23 23.4 22.8 23.6C22.6 23.8 22.3 23.8 22.1 23.6L20.8 22.7M16 15C16 13.9 15.1 13 14 13S12 13.9 12 15 12.9 17 14 17 16 16.1 16 15M8 15C8 13.9 7.1 13 6 13S4 13.9 4 15 4.9 17 6 17 8 16.1 8 15Z"/></svg>');
+        }
+        
+        .role-icon.villager {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2327ae60"><path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/></svg>');
+        }
+        
+        .role-icon.prophet {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%233498db"><path d="M12,3L1,9L12,15L21,10.09V17H23V9M5,13.18V17.18L12,21L19,17.18V13.18L12,17L5,13.18Z"/></svg>');
+        }
+        
+        .role-icon.troublemaker {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23e67e22"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M10,17L7,14L8.41,12.59L10,14.17L15.59,8.58L17,10L10,17Z"/></svg>');
+        }
+        
+        .role-icon.drunk {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239b59b6"><path d="M20.5,11L19.41,10.06C20.46,7.79 19.79,5.05 17.9,3.38C16.13,1.81 13.67,1.42 11.5,2.25C10.53,2.62 9.71,3.25 9.08,4.03C7.44,2.16 4.76,1.69 2.5,2.81C2.5,2.81 1.87,3.12 2,3.5C2.07,3.71 2.58,4.1 2.5,4.5C2.38,5.03 1.73,5.54 1.5,6C1,6.87 1,8.1 1.5,9C1.89,9.73 2.41,10.39 3,11L3.5,11.5C1.5,13.5 1.5,16.5 3.5,18.5C4.72,19.74 6.56,20.5 8.5,20.5C10.44,20.5 12.28,19.74 13.5,18.5C15.5,16.5 15.5,13.5 13.5,11.5L14,11C15.24,10.12 16.54,9.5 18,9.5C19,9.5 20,9.78 20.5,11M12,7.5C12.83,7.5 13.5,8.17 13.5,9C13.5,9.83 12.83,10.5 12,10.5C11.17,10.5 10.5,9.83 10.5,9C10.5,8.17 11.17,7.5 12,7.5Z"/></svg>');
+        }
+        
+        .role-icon.wolfsbane {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23959ca1"><path d="M12,15C13.31,15 14.42,15.83 14.83,17H18A4,4 0 0,1 22,21V22H20V21A2,2 0 0,0 18,19H14.83C14.42,20.17 13.31,21 12,21C10.69,21 9.58,20.17 9.17,19H6A2,2 0 0,0 4,21V22H2V21A4,4 0 0,1 6,17H9.17C9.58,15.83 10.69,15 12,15M12,17A2,2 0 0,0 10,19A2,2 0 0,0 12,21A2,2 0 0,0 14,19A2,2 0 0,0 12,17M8,3C9.1,3 10,3.9 10,5C10,6.1 9.1,7 8,7C6.9,7 6,6.1 6,5C6,3.9 6.9,3 8,3M12,3C13.1,3 14,3.9 14,5C14,6.1 13.1,7 12,7C10.9,7 10,6.1 10,5C10,3.9 10.9,3 12,3M16,3C17.1,3 18,3.9 18,5C18,6.1 17.1,7 16,7C14.9,7 14,6.1 14,5C14,3.9 14.9,3 16,3M8,8C9.1,8 10,8.9 10,10C10,11.1 9.1,12 8,12C6.9,12 6,11.1 6,10C6,8.9 6.9,8 8,8M12,8C13.1,8 14,8.9 14,10C14,11.1 13.1,12 12,12C10.9,12 10,11.1 10,10C10,8.9 10.9,8 12,8M16,8C17.1,8 18,8.9 18,10C18,11.1 17.1,12 16,12C14.9,12 14,11.1 14,10C14,8.9 14.9,8 16,8M8,13C9.1,13 10,13.9 10,15C10,16.1 9.1,17 8,17C6.9,17 6,16.1 6,15C6,13.9 6.9,13 8,13M12,13C13.1,13 14,13.9 14,15C14,16.1 13.1,17 12,17C10.9,17 10,16.1 10,15C10,13.9 10.9,13 12,13M16,13C17.1,13 18,13.9 18,15C18,16.1 17.1,17 16,17C14.9,17 14,16.1 14,15C14,13.9 14.9,13 16,13Z"/></svg>');
+        }
+        
+        .role-icon.insomniac {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23f1c40f"><path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A4,4 0 0,1 8,16A4,4 0 0,1 12,12A4,4 0 0,0 16,8A4,4 0 0,0 12,4M12,6.5A1.5,1.5 0 0,1 13.5,8A1.5,1.5 0 0,1 12,9.5A1.5,1.5 0 0,1 10.5,8A1.5,1.5 0 0,1 12,6.5M12,14.5A1.5,1.5 0 0,0 10.5,16A1.5,1.5 0 0,0 12,17.5A1.5,1.5 0 0,0 13.5,16A1.5,1.5 0 0,0 12,14.5Z"/></svg>');
+        }
+        
+        .role-icon.thief {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239b59b6"><path d="M13,9H18.5L17,7.5L18,6.5L20.5,9L18,11.5L17,10.5L18.5,9H13V9M13,15V12H20.5L19,13.5L20,14.5L17.5,12L20,9.5L19,10.5L20.5,12H13V9H11V15H13M10,10.5L11,11.5L9.5,13H15V15H9.5L11,16.5L10,17.5L7.5,15L10,12.5L11,13.5L9.5,15H7V9H9.5L11,10.5L10,11.5L12.5,9L10,6.5L11,7.5L9.5,9H15V15H9.5L11,13.5L10,12.5L7.5,15L10,17.5M22,3H2A2,2 0 0,0 0,5V19A2,2 0 0,0 2,21H22A2,2 0 0,0 24,19V5A2,2 0 0,0 22,3M22,19H2V5H22V19Z"/></svg>');
+        }
+        
+        .timer {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffcc00;
+            margin: 10px 0;
+        }
+        
+        @media (max-width: 500px) {
+            .container {
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            .vote-btn {
+                width: 70px;
+                height: 70px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐺 手机狼人杀 🐺</h1>
+        
+        <!-- 大厅界面 -->
+        <div id="lobby-screen" class="screen active">
+            <div class="input-group">
+                <input type="text" id="player-name" placeholder="输入你的昵称" maxlength="15">
+                <input type="text" id="room-code" placeholder="输入房间号" maxlength="6">
+                <button id="join-room-btn" class="btn">加入房间</button>
+                <button id="create-room-btn" class="btn">创建新房间</button>
+            </div>
+            <div class="game-log">
+                <div class="log-entry system">欢迎来到狼人杀游戏！请输入昵称并加入房间</div>
+            </div>
+        </div>
+        
+        <!-- 等待室界面 -->
+        <div id="waiting-screen" class="screen">
+            <h2>房间号: <span id="room-id-display">---</span></h2>
+            <div id="player-list"></div>
+            <button id="start-game-btn" class="btn" disabled>等待玩家加入...</button>
+            <div class="game-log" id="waiting-log"></div>
+        </div>
+        
+        <!-- 身份展示界面 -->
+        <div id="role-screen" class="screen">
+            <div class="role-card">
+                <div class="role-icon" id="role-icon"></div>
+                <div class="role-name" id="role-name">身份</div>
+                <div class="role-desc" id="role-desc">身份描述</div>
+            </div>
+            <button id="confirm-role-btn" class="btn">确认身份</button>
+            <div class="game-log" id="role-log"></div>
+        </div>
+        
+        <!-- 夜晚阶段界面 -->
+        <div id="night-screen" class="screen">
+            <div class="timer" id="night-timer">00:00</div>
+            <div class="action-panel" id="action-panel">
+                <h3 class="action-title">等待其他玩家行动...</h3>
+                <div id="action-content"></div>
+            </div>
+            <div class="game-log" id="night-log"></div>
+        </div>
+        
+        <!-- 投票阶段界面 -->
+        <div id="voting-screen" class="screen">
+            <h2>投票阶段</h2>
+            <p>投票选出你认为的狼人</p>
+            <div class="vote-container" id="vote-container"></div>
+            <button id="submit-vote-btn" class="btn" disabled>提交投票</button>
+            <div class="game-log" id="voting-log"></div>
+        </div>
+        
+        <!-- 结果界面 -->
+        <div id="result-screen" class="screen">
+            <h2>游戏结果</h2>
+            <div id="result-content"></div>
+            <button id="play-again-btn" class="btn">再玩一次</button>
+            <div class="game-log" id="result-log"></div>
+        </div>
+    </div>
+    
+    <script>
+        // 游戏状态
+        const gameState = {
+            socket: null,
+            playerId: null,
+            playerName: '',
+            roomId: '',
+            role: '',
+            players: [],
+            currentPlayer: null,
+            votedPlayer: null
+        };
+        
+        // 角色信息
+        const roles = {
+            wolf: { name: '狼人', desc: '狼人阵营，夜晚睁眼确认队友' },
+            wolfsbane: { name: '狼牙棒', desc: '狼人阵营，知道狼人身份，掩护狼人' },
+            villager: { name: '村民', desc: '好人阵营，无特殊技能' },
+            prophet: { name: '预言家', desc: '好人阵营，夜晚可查看一名玩家身份' },
+            thief: { name: '盗贼', desc: '好人阵营，夜晚可交换角色卡' },
+            troublemaker: { name: '捣蛋鬼', desc: '好人阵营，夜晚可交换两名玩家角色卡' },
+            drunk: { name: '酒鬼', desc: '好人阵营，夜晚可交换自己的角色卡' },
+            insomniac: { name: '失眠者', desc: '好人阵营，夜晚可查看自己的最终角色卡' }
+        };
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 连接服务器
+            gameState.socket = io('https://your-socketio-server.herokuapp.com');
+            
+            // 监听服务器事件
+            gameState.socket.on('connect', () => {
+                addLog('已连接到游戏服务器', 'system', '#lobby-screen .game-log');
+            });
+            
+            gameState.socket.on('disconnect', () => {
+                addLog('与服务器断开连接', 'system', '#lobby-screen .game-log');
+            });
+            
+            gameState.socket.on('room-created', (roomId) => {
+                gameState.roomId = roomId;
+                document.getElementById('room-id-display').textContent = roomId;
+                switchScreen('waiting-screen');
+                addLog(`房间 ${roomId} 创建成功`, 'system', '#waiting-log');
+            });
+            
+            gameState.socket.on('player-joined', (players) => {
+                gameState.players = players;
+                updatePlayerList();
+                document.getElementById('start-game-btn').disabled = players.length < 5;
+                addLog(`${players[players.length-1].name} 加入了房间`, 'system', '#waiting-log');
+            });
+            
+            gameState.socket.on('player-left', (players) => {
+                gameState.players = players;
+                updatePlayerList();
+                document.getElementById('start-game-btn').disabled = players.length < 5;
+                addLog(`有玩家离开了房间`, 'system', '#waiting-log');
+            });
+            
+            gameState.socket.on('game-started', (playerData) => {
+                gameState.playerId = playerData.id;
+                gameState.role = playerData.role;
+                showRole();
+            });
+            
+            gameState.socket.on('night-action', (actionData) => {
+                handleNightAction(actionData);
+            });
+            
+            gameState.socket.on('voting-started', (players) => {
+                gameState.players = players;
+                switchScreen('voting-screen');
+                setupVoting();
+            });
+            
+            gameState.socket.on('vote-result', (result) => {
+                showGameResult(result);
+            });
+            
+            // 按钮事件
+            document.getElementById('join-room-btn').addEventListener('click', joinRoom);
+            document.getElementById('create-room-btn').addEventListener('click', createRoom);
+            document.getElementById('start-game-btn').addEventListener('click', startGame);
+            document.getElementById('confirm-role-btn').addEventListener('click', confirmRole);
+            document.getElementById('submit-vote-btn').addEventListener('click', submitVote);
+            document.getElementById('play-again-btn').addEventListener('click', playAgain);
+        });
+        
+        // 加入房间
+        function joinRoom() {
+            const playerName = document.getElementById('player-name').value.trim();
+            const roomCode = document.getElementById('room-code').value.trim();
+            
+            if (!playerName) {
+                alert('请输入昵称');
+                return;
+            }
+            
+            if (!roomCode) {
+                alert('请输入房间号');
+                return;
+            }
+            
+            gameState.playerName = playerName;
+            gameState.roomId = roomCode;
+            
+            gameState.socket.emit('join-room', {
+                roomId: roomCode,
+                playerName: playerName
+            });
+        }
+        
+        // 创建房间
+        function createRoom() {
+            const playerName = document.getElementById('player-name').value.trim();
+            
+            if (!playerName) {
+                alert('请输入昵称');
+                return;
+            }
+            
+            gameState.playerName = playerName;
+            gameState.socket.emit('create-room', playerName);
+        }
+        
+        // 开始游戏
+        function startGame() {
+            gameState.socket.emit('start-game', gameState.roomId);
+        }
+        
+        // 更新玩家列表
+        function updatePlayerList() {
+            const playerList = document.getElementById('player-list');
+            playerList.innerHTML = '';
+            
+            gameState.players.forEach(player => {
+                const playerCard = document.createElement('div');
+                playerCard.className = 'player-card';
+                playerCard.innerHTML = `
+                    <div class="player-icon">${player.name.charAt(0)}</div>
+                    <div class="player-info">
+                        <div class="player-name">${player.name}</div>
+                        <div class="player-status">${player.ready ? '已准备' : '准备中'}</div>
+                    </div>
+                `;
+                playerList.appendChild(playerCard);
+            });
+        }
+        
+        // 显示身份
+        function showRole() {
+            const role = roles[gameState.role];
+            
+            document.getElementById('role-name').textContent = role.name;
+            document.getElementById('role-desc').textContent = role.desc;
+            document.getElementById('role-icon').className = `role-icon ${gameState.role}`;
+            
+            switchScreen('role-screen');
+            addLog(`你的身份是: ${role.name}`, 'system', '#role-log');
+        }
+        
+        // 确认身份
+        function confirmRole() {
+            gameState.socket.emit('player-ready', {
+                roomId: gameState.roomId,
+                playerId: gameState.playerId
+            });
+            
+            switchScreen('night-screen');
+            addLog('等待夜晚阶段开始...', 'system', '#night-log');
+        }
+        
+        // 处理夜晚行动
+        function handleNightAction(actionData) {
+            const actionPanel = document.getElementById('action-panel');
+            const actionContent = document.getElementById('action-content');
+            
+            // 更新当前玩家状态
+            gameState.currentPlayer = actionData.currentPlayer;
+            
+            // 显示行动标题
+            document.querySelector('.action-title').textContent = actionData.message;
+            
+            // 清空内容
+            actionContent.innerHTML = '';
+            
+            // 根据不同角色显示不同行动界面
+            if (actionData.playerId === gameState.playerId) {
+                switch(gameState.role) {
+                    case 'wolf':
+                        // 狼人行动
+                        const wolfTeam = actionData.players
+                            .filter(p => p.role === 'wolf' && p.id !== gameState.playerId)
+                            .map(p => p.name);
+                        
+                        if (wolfTeam.length > 0) {
+                            actionContent.innerHTML = `
+                                <p>你的狼人队友是: ${wolfTeam.join(', ')}</p>
+                                <button class="btn btn-wolf" onclick="completeAction()">完成行动</button>
+                            `;
+                        } else {
+                            actionContent.innerHTML = `
+                                <p>你是唯一的狼人</p>
+                                <button class="btn btn-wolf" onclick="completeAction()">完成行动</button>
+                            `;
+                        }
+                        break;
+                        
+                    case 'prophet':
+                        // 预言家行动
+                        actionContent.innerHTML = `
+                            <p>选择一名玩家查看身份:</p>
+                            <div class="vote-container">
+                                ${actionData.players.map(p => `
+                                    <button class="vote-btn" data-id="${p.id}">${p.name}</button>
+                                `).join('')}
+                            </div>
+                        `;
+                        break;
+                        
+                    case 'villager':
+                        // 村民无行动
+                        actionContent.innerHTML = `
+                            <p>你不需要行动，请等待</p>
+                            <button class="btn btn-villager" onclick="completeAction()">确认</button>
+                        `;
+                        break;
+                        
+                    // 其他角色行动类似...
+                    default:
+                        actionContent.innerHTML = `
+                            <p>执行你的行动...</p>
+                            <button class="btn" onclick="completeAction()">完成行动</button>
+                        `;
+                }
+            } else {
+                actionContent.innerHTML = `
+                    <p>等待 ${actionData.currentPlayer} 行动...</p>
+                `;
+            }
+        }
+        
+        // 完成行动
+        function completeAction() {
+            gameState.socket.emit('complete-action', {
+                roomId: gameState.roomId,
+                playerId: gameState.playerId
+            });
+        }
+        
+        // 设置投票界面
+        function setupVoting() {
+            const voteContainer = document.getElementById('vote-container');
+            voteContainer.innerHTML = '';
+            
+            gameState.players.forEach(player => {
+                if (player.id !== gameState.playerId) {
+                    const voteBtn = document.createElement('button');
+                    voteBtn.className = 'vote-btn';
+                    voteBtn.textContent = player.name;
+                    voteBtn.dataset.id = player.id;
+                    
+                    voteBtn.addEventListener('click', () => {
+                        // 清除之前的选择
+                        document.querySelectorAll('.vote-btn').forEach(btn => {
+                            btn.classList.remove('selected');
+                        });
+                        
+                        // 设置当前选择
+                        voteBtn.classList.add('selected');
+                        gameState.votedPlayer = player.id;
+                        document.getElementById('submit-vote-btn').disabled = false;
+                    });
+                    
+                    voteContainer.appendChild(voteBtn);
+                }
+            });
+            
+            addLog('投票阶段开始，请选择一名玩家投票', 'system', '#voting-log');
+        }
+        
+        // 提交投票
+        function submitVote() {
+            if (!gameState.votedPlayer) {
+                alert('请选择一名玩家投票');
+                return;
+            }
+            
+            gameState.socket.emit('submit-vote', {
+                roomId: gameState.roomId,
+                playerId: gameState.playerId,
+                vote: gameState.votedPlayer
+            });
+            
+            document.getElementById('submit-vote-btn').disabled = true;
+            addLog(`你投票给了: ${gameState.votedPlayer}`, 'action', '#voting-log');
+        }
+        
+        // 显示游戏结果
+        function showGameResult(result) {
+            switchScreen('result-screen');
+            
+            let resultHTML = `
+                <div class="role-card">
+                    <h3>投票结果</h3>
+                    <p>${result.message}</p>
+                    <p>${result.winners}阵营获胜！</p>
+                </div>
+                
+                <h3>玩家身份</h3>
+            `;
+            
+            result.players.forEach(player => {
+                resultHTML += `
+                    <div class="player-card ${player.eliminated ? 'eliminated' : ''}">
+                        <div class="player-icon">${player.name.charAt(0)}</div>
+                        <div class="player-info">
+                            <div class="player-name">${player.name} ${player.eliminated ? '❌' : ''}</div>
+                            <div class="player-status">身份: ${roles[player.role].name}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('result-content').innerHTML = resultHTML;
+            addLog(`游戏结束: ${result.winners}阵营获胜`, 'system', '#result-log');
+        }
+        
+        // 再玩一次
+        function playAgain() {
+            gameState.socket.emit('play-again', {
+                roomId: gameState.roomId,
+                playerId: gameState.playerId
+            });
+            
+            // 重置状态
+            gameState.role = '';
+            gameState.votedPlayer = null;
+            switchScreen('waiting-screen');
+            updatePlayerList();
+        }
+        
+        // 切换界面
+        function switchScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
+        
+        // 添加日志
+        function addLog(message, type, selector) {
+            const log = document.querySelector(selector);
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = message;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+    </script>
+</body>
+</html>
